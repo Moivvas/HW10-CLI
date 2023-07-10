@@ -1,4 +1,3 @@
-import sys
 import ast
 from collections import UserDict
 
@@ -45,15 +44,18 @@ class Record:
     
     def __str__(self):
         return f"{str(self.name)}:{','.join(str(p) for p in self.phones)}"
+    
+    def delete_rec(self, phone):
+        if phone in self.phones:
+            self.phones.remove(phone)
+            return f"Phone {phone} deleted"
+        return f"Contact {self.name} has no phone {phone}"
 
 
 class AddressBook(UserDict):
 
     def add_record(self, record):
-        self.data[str(record.name)] = record        
-        # data = {f'{record.name.value}': record.phone.value}
-        # with open('phone_book.txt', 'a') as pb:
-        #     pb.write(f"{data}" + '\n')
+        self.data[str(record.name)] = record
         return "add record success"
 
     def show_all(self):
@@ -74,17 +76,37 @@ class AddressBook(UserDict):
     def save_data(self, file):
         with open(file, "w") as f:
             f.write(self.show_all())
-            
+    
+    def delete_record(self, name):
+        if name in self.data:
+            del self.data[name]
+            return f"Record {name} deleted"
+        return f"No record found with name {name}"
+
+    def search(self, search_field):
+            results = []
+            for record in self.values():
+                if isinstance(search_field, Name) and search_field.value.lower() in record.name.value.lower():
+                    phones = ', '.join(str(phone) for phone in record.phones)
+                    results.append(f"{record.name} : {phones}")
+                elif isinstance(search_field, Phone) and any(search_field.value == phone.value for phone in record.phones):
+                    results.append(f"{record.name} : {search_field.value}")
+            if results:
+                return '\n'.join(results)
+            return "No matching records found."
+
+
 ab = AddressBook()
 filename = "phone_book.txt"
 
+
 def input_error(func):
     def handler(*args):
-        return_text = """<<< Please check your input
+        return_text = """<<<Please check your input
         add "Name" "phone"
-        change "Name" "phone"
-        phone "Name"
-        show all
+        change "Name" "old_phone" "new_phone"
+        search "Field"
+        show_all
         exit"""
         try:
             return func(*args)
@@ -110,20 +132,12 @@ def is_name_occupied(name):
     return False
 
 
-
 @input_error
 def add(*args):
     name = Name(args[0])
     phone = Phone(args[1])
-
-    # if is_name_occupied(name.value):
-    #     return '<<<This name is occupied'
     record = Record(name,phone)
-    # address_book = AddressBook()
     return ab.add_record(record)
-    
-
-    # return f'<<< Add success {name.value.capitalize()} {phone.value}'
 
 
 @input_error
@@ -131,50 +145,56 @@ def change(*args):
     name = Name(args[0])
     old_phone = Phone(args[1])
     new_phone = Phone(args[2])
-    # print(name.value)
-    # print(new_phone.value)
-
     rec = ab.get(str(name))
     if rec:
         return rec.change_phone(old_phone, new_phone)
-    # address_book = AddressBook()
-    # return address_book.change_record(new_record) if True else f'{name.value} is not in phne book'
     return f"Address book has no contact with name {name}"
 
+
 def show_all(*args):
-    # address_book = AddressBook()
     return ab.show_all()
+
 
 @input_error
 def delete(*args):
+    if len(args) != 1:
+        return """<<< Please check your input <<< delete "Name" >>>"""
     name = Name(args[0])
-    address_book = AddressBook()
-    return address_book.delete(name)
+    rec = ab.get(str(name))
+    if rec:
+        ab.delete_record(str(name))
+        return f"Record {name} deleted"
+    return f"Address book has no contact with name {name}"
+
 
 @input_error
-def phones(*args):
-    name = Name(args[0])
-    address_book = AddressBook()
-    return address_book.search_by_name(name)
+def search(*args):
+    if args and args[0].isdigit():
+        search_field = Phone(args[0])
+    else:
+        search_field = Name(args[0]) if args else None
+    
+    if search_field:
+        return ab.search(search_field)
+    return 'Please provide a search term'
 
 
 def exit_program(*args):
     return 'Good Bye'
-    # sys.exit(0)
 
 
 def no_command(*args):
-    return '\n***Unknown command***\nCommand available:\nadd "Name" "phone"\nchange "Name" "phone"\nphone "Name"\ndelete "Name"\nshow all\nexit'
+    return '\n***Unknown command***\nCommand available:\nadd "Name" "phone"\nchange "Name" "old_phone" "new_phone"\nsearch "Field"\ndelete "Name"\nshow_all\nexit'
 
 
 def hello_command(*args):
-    return '<<< Hi, how can I help you?\nCommand available:\nadd "Name" "phone"\nchange "Name" "phone"\nphone "Name"\ndelete "Name"\nshow all\nexit'
+    return '<<< Hi, how can I help you?\nCommand available:\nadd "Name" "phone"\nchange "Name" "old_phone" "new_phone"\nsearch "Field"\ndelete "Name"\nshow_all\nexit'
 
 
 command_dict = {
     'add': add,
     'change': change,
-    'phone': phones,
+    'search': search,
     'show_all': show_all,
     'delete': delete,
     'exit': exit_program,
@@ -188,7 +208,6 @@ def parser(text: str) -> tuple[callable, list[str] | list[None]]:
     command_parts = text.split(maxsplit=1)
     command = command_parts[0]
     data = command_parts[1].strip() if len(command_parts) > 1 else []
-
     if command in command_dict:
         return command_dict[command], list(data.split()) if data else []
     else:
@@ -200,17 +219,7 @@ def main():
     print("Enter 'Hello' to start")
     while True:
         user_input = input('>>>')
-        # if user_input.lower() == 'hello':
-        #     print()
-        # # elif user_input.lower() in ('good bye', 'exit', 'close'):
-        # #     print('Good Bye')
-        # #     break
-        # else:
         command, data = parser(user_input)
-        # if data is not None:
-        #     result = command(*data)
-        # else:
-        #     result = command()
         print(command(*data))
         ab.save_data(filename)
         if command == exit_program:
