@@ -2,10 +2,17 @@ import sys
 import ast
 from collections import UserDict
 
+
 class Field:
     
     def __init__(self, value) -> None:
         self.value = value
+    
+    def __str__(self) -> str:
+        return self.value
+    
+    def __repr__(self) -> str:
+        return str(self)
 
 
 class Name(Field):
@@ -19,83 +26,74 @@ class Phone(Field):
 class Record:
     def __init__(self, name, phone=None) -> None:
         self.name = name
-        self.phone = phone
+        self.phones = []
+        if phone:
+            self.phones.append(phone)
+    
+    def add_phone(self, phone):
+        self.phones.append(phone)
+    
+    def add_phones(self, phones):
+        self.phones.extend(phones)
+    
+    def change_phone(self, old_phone, new_phone):
+        for idx, p in enumerate(self.phones):
+            if p.value == old_phone.value:
+                self.phones[idx] = new_phone
+                return f"phone {old_phone} change to phone {new_phone}"
+        return f"Contact {self.name} has no phone {old_phone}"
+    
+    def __str__(self):
+        return f"{str(self.name)}:{','.join(str(p) for p in self.phones)}"
 
 
 class AddressBook(UserDict):
 
     def add_record(self, record):
-        
-        data = {f'{record.name.value}': record.phone.value}
-        with open('phone_book.txt', 'a') as pb:
-            pb.write(f"{data}" + '\n')
-        return "add_record success"
+        self.data[str(record.name)] = record        
+        # data = {f'{record.name.value}': record.phone.value}
+        # with open('phone_book.txt', 'a') as pb:
+        #     pb.write(f"{data}" + '\n')
+        return "add record success"
 
-    def change_record(self, new_record):
-        found = False
-        with open('phone_book.txt', 'r') as pb:
-            lines = pb.readlines()
+    def show_all(self):
+        return "\n".join(str(rec) for rec in self.values())
 
-        with open('phone_book.txt', 'w') as pb:
-            for line in lines:
-                record_dict = ast.literal_eval(line)
-                name = list(record_dict.keys())[0]
-                if name == new_record.name.value:
-                    record_dict[name] = new_record.phone.value
-                    found = True
-                pb.write(f"{record_dict}\n")
-
-        if found:
-            return f'<<< Change success: {new_record.name.value.capitalize()} has a new phone {new_record.phone.value}'
-        else:
-            return f'{new_record.name.value} is not in phone book'
-
-    def read_file(self):
-        with open('phone_book.txt', 'r') as pb:
-            lines = pb.readlines()
-
-        contacts = [f"{list(ast.literal_eval(line).keys())[0].capitalize()} : {list(ast.literal_eval(line).values())[0]}" for line in lines]
-
-        return '\n'.join(contacts)
-
-    def delete(self, name):
-        name = str(name.value)
-        with open('phone_book.txt', 'r') as pb:
-            lines = pb.readlines()
-
-        new_lines = []
+    def load_data(self, file):
+        with open(file) as f:
+            lines = f.readlines()
         for line in lines:
-            record_dict = ast.literal_eval(line)
-            if list(record_dict.keys())[0] != name:
-                new_lines.append(line)
-
-        with open('phone_book.txt', 'w') as pb:
-            pb.writelines(new_lines)
-
-        return f"Delete {name.capitalize()} success"
-
-    def search_by_name(self, name):
-        with open('phone_book.txt', 'r') as pb:
-            lines = pb.readlines()
-
-        for line in lines:
-            record_dict = ast.literal_eval(line)
-            if name.value in record_dict:
-                return f"{name.value.capitalize()} phone is {record_dict[name.value]}"
-
-        return f"No phone number found for {name.value.capitalize()}"
-
+            line = line.replace("\n", "")
+            raw_name, raw_phones = line.split(":")
+            name = Name(raw_name)
+            phones = [Phone(p) for p in raw_phones.split(",")]
+            rec = Record(name)
+            rec.add_phones(phones)
+            self.add_record(rec)
+    
+    def save_data(self, file):
+        with open(file, "w") as f:
+            f.write(self.show_all())
+            
+ab = AddressBook()
+filename = "phone_book.txt"
 
 def input_error(func):
     def handler(*args):
+        return_text = """<<< Please check your input
+        add "Name" "phone"
+        change "Name" "phone"
+        phone "Name"
+        show all
+        exit"""
         try:
             return func(*args)
 
         except TypeError:
-            return '<<< Please check your input\nadd "Name" "phone"\nchange "Name" "phone"\nphone "Name"\nshow all\nexit'
+            return return_text
 
         except IndexError:
-            return '<<< Please correct your input\nadd "Name" "phone"\nchange "Name" "phone"\nphone "Name"\nshow all\nexit'
+            return return_text
 
     return handler
 
@@ -118,31 +116,34 @@ def add(*args):
     name = Name(args[0])
     phone = Phone(args[1])
 
-    if is_name_occupied(name.value):
-        return '<<<This name is occupied'
+    # if is_name_occupied(name.value):
+    #     return '<<<This name is occupied'
     record = Record(name,phone)
-    address_book = AddressBook()
-    address_book.add_record(record)
+    # address_book = AddressBook()
+    return ab.add_record(record)
     
 
-    return f'<<< Add success {name.value.capitalize()} {phone.value}'
+    # return f'<<< Add success {name.value.capitalize()} {phone.value}'
 
 
 @input_error
 def change(*args):
     name = Name(args[0])
-    new_phone = Phone(args[1])
-    print(name.value)
-    print(new_phone.value)
+    old_phone = Phone(args[1])
+    new_phone = Phone(args[2])
+    # print(name.value)
+    # print(new_phone.value)
 
-    new_record = Record(name, new_phone)
-    address_book = AddressBook()
-    return address_book.change_record(new_record) if True else f'{name.value} is not in phne book'
+    rec = ab.get(str(name))
+    if rec:
+        return rec.change_phone(old_phone, new_phone)
+    # address_book = AddressBook()
+    # return address_book.change_record(new_record) if True else f'{name.value} is not in phne book'
+    return f"Address book has no contact with name {name}"
 
-
-def show_all():
-    address_book = AddressBook()
-    return address_book.read_file()
+def show_all(*args):
+    # address_book = AddressBook()
+    return ab.show_all()
 
 @input_error
 def delete(*args):
@@ -157,13 +158,17 @@ def phones(*args):
     return address_book.search_by_name(name)
 
 
-def exit_program():
-    print('Good Bye')
-    sys.exit(0)
+def exit_program(*args):
+    return 'Good Bye'
+    # sys.exit(0)
 
 
 def no_command(*args):
     return '\n***Unknown command***\nCommand available:\nadd "Name" "phone"\nchange "Name" "phone"\nphone "Name"\ndelete "Name"\nshow all\nexit'
+
+
+def hello_command(*args):
+    return '<<< Hi, how can I help you?\nCommand available:\nadd "Name" "phone"\nchange "Name" "phone"\nphone "Name"\ndelete "Name"\nshow all\nexit'
 
 
 command_dict = {
@@ -174,37 +179,42 @@ command_dict = {
     'delete': delete,
     'exit': exit_program,
     'close': exit_program,
+    'hello': hello_command,
 }
 
 
-def parser(text: str) -> tuple[callable, list[str] | None]:
+def parser(text: str) -> tuple[callable, list[str] | list[None]]:
     text = text.lower()
     command_parts = text.split(maxsplit=1)
     command = command_parts[0]
-    data = command_parts[1].strip() if len(command_parts) > 1 else None
+    data = command_parts[1].strip() if len(command_parts) > 1 else []
 
     if command in command_dict:
-        return command_dict[command], list(data.split()) if data else None
+        return command_dict[command], list(data.split()) if data else []
     else:
-        return no_command, None
+        return no_command, []
 
 
 def main():
+    ab.load_data(filename)
     print("Enter 'Hello' to start")
     while True:
         user_input = input('>>>')
-        if user_input.lower() == 'hello':
-            print('<<< Hi, how can I help you?\nCommand available:\nadd "Name" "phone"\nchange "Name" "phone"\nphone "Name"\ndelete "Name"\nshow all\nexit')
-        elif user_input.lower() in ('good bye', 'exit', 'close'):
-            print('Good Bye')
+        # if user_input.lower() == 'hello':
+        #     print()
+        # # elif user_input.lower() in ('good bye', 'exit', 'close'):
+        # #     print('Good Bye')
+        # #     break
+        # else:
+        command, data = parser(user_input)
+        # if data is not None:
+        #     result = command(*data)
+        # else:
+        #     result = command()
+        print(command(*data))
+        ab.save_data(filename)
+        if command == exit_program:
             break
-        else:
-            command, data = parser(user_input)
-            if data is not None:
-                result = command(*data)
-            else:
-                result = command()
-            print(result)
 
 
 if __name__ == "__main__":
